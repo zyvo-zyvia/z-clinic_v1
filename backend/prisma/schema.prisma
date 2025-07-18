@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Enum para perfil do usuário
+enum perfil_usuario {
+  ADMINISTRADOR
+  GERENTE
+  RECEPCIONISTA
+  MEDICO
+}
+
+// Model atualizado
+model usuarios {
+  id         String        @id
+  tenant_id  String
+  email      String        @unique
+  nome       String
+  telefone   String?
+  perfil     perfil_usuario
+  ativo      Boolean
+  created_at DateTime
+  updated_at DateTime
+}
