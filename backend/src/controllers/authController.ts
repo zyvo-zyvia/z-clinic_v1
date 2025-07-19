@@ -19,17 +19,12 @@ export class AuthController {
 
       logger.info(`Tentativa de login para: ${email}`);
 
-      // Buscar usuário no banco
-      const user = await prisma.user.findUnique({
-        where: { email: email.toLowerCase() },
-        include: {
-          clinic: {
-            select: {
-              id: true,
-              name: true,
-              isActive: true
-            }
-          }
+      // Buscar usuário no banco (schema zclinic)
+      const user = await prisma.usuario.findUnique({
+        where: { 
+          email: email.toLowerCase(),
+          tenantId: 'zclinic_v1',
+          ativo: true
         }
       });
 
@@ -42,7 +37,7 @@ export class AuthController {
       }
 
       // Verificar se usuário está ativo
-      if (!user.isActive) {
+      if (!user.ativo) {
         logger.warn(`Tentativa de login com usuário inativo: ${email}`);
         return res.status(401).json({
           error: 'Usuário inativo. Entre em contato com o administrador.',
@@ -50,17 +45,8 @@ export class AuthController {
         });
       }
 
-      // Verificar se clínica está ativa
-      if (!user.clinic.isActive) {
-        logger.warn(`Tentativa de login com clínica inativa: ${email}`);
-        return res.status(401).json({
-          error: 'Clínica inativa. Entre em contato com o suporte.',
-          code: 'CLINIC_INACTIVE'
-        });
-      }
-
       // Verificar senha
-      const isPasswordValid = await bcrypt.compare(password, user.password);
+      const isPasswordValid = await bcrypt.compare(password, user.senha);
       if (!isPasswordValid) {
         logger.warn(`Tentativa de login com senha incorreta: ${email}`);
         return res.status(401).json({
@@ -73,21 +59,21 @@ export class AuthController {
       const tokenPayload = {
         userId: user.id,
         email: user.email,
-        role: user.role,
-        clinicId: user.clinicId
+        perfil: user.perfil,
+        tenantId: user.tenantId
       };
 
       const accessToken = JWTService.generateAccessToken(tokenPayload);
       const refreshToken = JWTService.generateRefreshToken(tokenPayload);
 
       // Atualizar último login
-      await prisma.user.update({
+      await prisma.usuario.update({
         where: { id: user.id },
-        data: { lastLoginAt: new Date() }
+        data: { ultimoLoginEm: new Date() }
       });
 
       // Preparar resposta (sem senha)
-      const { password: _, ...userWithoutPassword } = user;
+      const { senha: _, ...userWithoutPassword } = user;
       
       const response: LoginResponse = {
         user: userWithoutPassword,
@@ -127,22 +113,18 @@ export class AuthController {
       const decoded = JWTService.verifyRefreshToken(refreshToken);
 
       // Verificar se usuário ainda existe e está ativo
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        include: {
-          clinic: {
-            select: {
-              id: true,
-              isActive: true
-            }
-          }
+      const user = await prisma.usuario.findUnique({
+        where: { 
+          id: decoded.userId,
+          tenantId: 'zclinic_v1',
+          ativo: true
         }
       });
 
-      if (!user || !user.isActive || !user.clinic.isActive) {
+      if (!user || !user.ativo) {
         return res.status(401).json({
-          error: 'Usuário ou clínica inativos',
-          code: 'USER_OR_CLINIC_INACTIVE'
+          error: 'Usuário inativo',
+          code: 'USER_INACTIVE'
         });
       }
 
@@ -150,8 +132,8 @@ export class AuthController {
       const tokenPayload = {
         userId: user.id,
         email: user.email,
-        role: user.role,
-        clinicId: user.clinicId
+        perfil: user.perfil,
+        tenantId: user.tenantId
       };
 
       const newAccessToken = JWTService.generateAccessToken(tokenPayload);
@@ -191,25 +173,21 @@ export class AuthController {
       }
 
       // Buscar dados atualizados do usuário
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.userId },
+      const user = await prisma.usuario.findUnique({
+        where: { 
+          id: req.user.userId,
+          tenantId: 'zclinic_v1'
+        },
         select: {
           id: true,
           email: true,
-          name: true,
-          role: true,
-          clinicId: true,
-          isActive: true,
+          nome: true,
+          perfil: true,
+          tenantId: true,
+          ativo: true,
           createdAt: true,
           updatedAt: true,
-          lastLoginAt: true,
-          clinic: {
-            select: {
-              id: true,
-              name: true,
-              isActive: true
-            }
-          }
+          ultimoLoginEm: true
         }
       });
 

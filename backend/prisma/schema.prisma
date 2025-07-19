@@ -1,30 +1,250 @@
+// ===============================================
+// PRISMA SCHEMA COMPLETO - Z-CLINIC V1
+// Sistema Multi-tenant no Schema zclinic
+// ===============================================
+
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+  schemas   = ["zclinic"]
 }
 
-// Enum para perfil do usuário
-enum perfil_usuario {
+// ===============================================
+// ENUMS EM PORTUGUÊS BRASILEIRO
+// ===============================================
+
+enum PerfilUsuario {
   ADMINISTRADOR
   GERENTE
   RECEPCIONISTA
   MEDICO
+
+  @@map("perfil_usuario")
+  @@schema("zclinic")
 }
 
-// Model atualizado
-model usuarios {
-  id         String        @id
-  tenant_id  String
-  email      String        @unique
-  nome       String
-  telefone   String?
-  perfil     perfil_usuario
-  ativo      Boolean
-  created_at DateTime
-  updated_at DateTime
+enum Genero {
+  MASCULINO
+  FEMININO
+  OUTRO
+  NAO_INFORMADO
+
+  @@map("genero")
+  @@schema("zclinic")
+}
+
+enum StatusConversa {
+  ATIVA
+  AGUARDANDO_RESPOSTA
+  TRANSFERIDA_HUMANO
+  RESOLVIDA
+  FINALIZADA
+
+  @@map("status_conversa")
+  @@schema("zclinic")
+}
+
+enum Prioridade {
+  BAIXA
+  NORMAL
+  ALTA
+  URGENTE
+
+  @@map("prioridade")
+  @@schema("zclinic")
+}
+
+enum OrigemConversa {
+  WHATSAPP
+  TELEGRAM
+  CHAT_WEB
+  EMAIL
+  TELEFONE
+
+  @@map("origem_conversa")
+  @@schema("zclinic")
+}
+
+// ===============================================
+// MODELS - USUÁRIOS E AUTENTICAÇÃO
+// ===============================================
+
+model Usuario {
+  id              String        @id @default(cuid())
+  tenantId        String        @default("zclinic_v1") @map("tenant_id")
+  authUserId      String?       @map("auth_user_id") @db.Uuid
+  email           String        @unique
+  nome            String
+  telefone        String?
+  perfil          PerfilUsuario @default(RECEPCIONISTA)
+  ativo           Boolean       @default(true)
+  ultimoLoginEm   DateTime?     @map("ultimo_login_em")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relacionamentos
+  conversasResponsavel Conversa[]    @relation("UsuarioResponsavel")
+  campanhasCriadas     Campanha[]    @relation("CriadorCampanha") 
+  logsAtividades       LogAtividade[]
+
+  @@map("usuarios")
+  @@schema("zclinic")
+}
+
+// ===============================================
+// MODELS - CONTATOS E PACIENTES
+// ===============================================
+
+model Contato {
+  id                String    @id @default(cuid())
+  tenantId          String    @default("zclinic_v1") @map("tenant_id")
+  telefone          String    @unique
+  nome              String?
+  email             String?
+  dataNascimento    DateTime? @map("data_nascimento") @db.Date
+  genero            Genero?
+  endereco          String?
+  cidade            String?
+  estado            String?
+  cep               String?
+  tags              Json?
+  observacoes       String?
+  ativo             Boolean   @default(true)
+  permiteMarketing  Boolean   @default(true) @map("permite_marketing")
+  ultimaInteracao   DateTime? @map("ultima_interacao")
+  primeiroContato   DateTime? @map("primeiro_contato")
+  totalAgendamentos Int       @default(0) @map("total_agendamentos")
+  totalGasto        Decimal   @default(0) @db.Decimal(10, 2) @map("total_gasto")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // Relacionamentos
+  conversas         Conversa[]
+  agendamentos      Agendamento[]
+  contatosCampanhas ContatoCampanha[]
+  mensagensEnviadas Mensagem[] @relation("RemetenteContato")
+
+  @@map("contatos")
+  @@schema("zclinic")
+}
+
+// =============================================== 
+// MODELS - CONVERSAS E MENSAGENS
+// ===============================================
+
+model Conversa {
+  id                   String          @id @default(cuid())
+  tenantId             String          @default("zclinic_v1") @map("tenant_id")
+  contatoId            String          @map("contato_id")
+  usuarioResponsavelId String?         @map("usuario_responsavel_id")
+  status               StatusConversa  @default(ATIVA)
+  prioridade           Prioridade      @default(NORMAL)
+  origem               OrigemConversa  @default(WHATSAPP)
+  intencao             String?
+  contexto             Json?
+  transferidaHumano    Boolean         @default(false) @map("transferida_humano")
+  motivoTransferencia  String?         @map("motivo_transferencia")
+  transferidaEm        DateTime?       @map("transferida_em")
+  iniciadaEm           DateTime        @default(now()) @map("iniciada_em")
+  finalizadaEm         DateTime?       @map("finalizada_em")
+  ultimaMensagemEm     DateTime?       @map("ultima_mensagem_em")
+  avaliacao            Int?            // 1-5 estrelas
+  feedback             String?
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+
+  // Relacionamentos
+  contato            Contato      @relation(fields: [contatoId], references: [id], onDelete: Cascade)
+  usuarioResponsavel Usuario?     @relation("UsuarioResponsavel", fields: [usuarioResponsavelId], references: [id])
+  mensagens          Mensagem[]
+  agendamentos       Agendamento[]
+
+  @@map("conversas")
+  @@schema("zclinic")
+}
+
+// ===============================================
+// MODELS ESSENCIAIS PARA AUTH
+// ===============================================
+
+model Mensagem {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("zclinic_v1") @map("tenant_id")
+  conversaId   String   @map("conversa_id")
+  remetenteId  String?  @map("remetente_id")
+  conteudo     String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relacionamentos
+  conversa        Conversa @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  remetenteContato Contato? @relation("RemetenteContato", fields: [remetenteId], references: [id])
+
+  @@map("mensagens")
+  @@schema("zclinic")
+}
+
+model Agendamento {
+  id          String   @id @default(cuid())
+  tenantId    String   @default("zclinic_v1") @map("tenant_id")
+  contatoId   String   @map("contato_id")
+  conversaId  String?  @map("conversa_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relacionamentos
+  contato   Contato   @relation(fields: [contatoId], references: [id])
+  conversa  Conversa? @relation(fields: [conversaId], references: [id])
+
+  @@map("agendamentos")
+  @@schema("zclinic")
+}
+
+model Campanha {
+  id          String   @id @default(cuid())
+  tenantId    String   @default("zclinic_v1") @map("tenant_id")
+  criadoPorId String   @map("criado_por_id")
+  nome        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relacionamentos
+  criadoPor         Usuario           @relation("CriadorCampanha", fields: [criadoPorId], references: [id])
+  contatosCampanhas ContatoCampanha[]
+
+  @@map("campanhas")
+  @@schema("zclinic")
+}
+
+model ContatoCampanha {
+  id         String   @id @default(cuid())
+  tenantId   String   @default("zclinic_v1") @map("tenant_id")
+  campanhaId String   @map("campanha_id")
+  contatoId  String   @map("contato_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relacionamentos
+  campanha Campanha @relation(fields: [campanhaId], references: [id])
+  contato  Contato  @relation(fields: [contatoId], references: [id])
+
+  @@map("contatos_campanhas")
+  @@schema("zclinic")
+}
+
+model LogAtividade {
+  id        String   @id @default(cuid())
+  tenantId  String   @default("zclinic_v1") @map("tenant_id")
+  usuarioId String?  @map("usuario_id")
+  acao      String
+  recurso   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relacionamentos
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@map("logs_atividades")
+  @@schema("zclinic")
 }

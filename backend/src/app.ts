@@ -6,6 +6,7 @@ import { logger } from './utils/logger';
 
 // Importar rotas
 import authRoutes from './routes/auth';
+import authSupabaseRoutes from './routes/authSupabase';
 
 const app = express();
 
@@ -43,14 +44,16 @@ app.get('/', (req, res) => {
     docs: '/api/docs',
     health: '/health',
     endpoints: {
-      auth: '/api/auth',
+      auth: '/api/auth',           // Auth original
+      authSupabase: '/api/auth-sb', // Auth Supabase
       version: 'v1.0.0'
     }
   });
 });
 
 // Rotas da API
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRoutes);           // Auth original (JWT próprio)
+app.use('/api/auth-sb', authSupabaseRoutes); // Auth Supabase (novo)
 
 // Middleware de tratamento de erros
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -101,7 +104,10 @@ app.use('*', (req, res) => {
       'POST /api/auth/login',
       'POST /api/auth/refresh',
       'GET /api/auth/me',
-      'POST /api/auth/logout'
+      'POST /api/auth/logout',
+      'GET /api/auth-sb/me',
+      'GET /api/auth-sb/admin-only',
+      'GET /api/auth-sb/perfil'
     ]
   });
 });

@@ -1,10 +1,15 @@
-export interface User {
+// src/types/auth.ts
+import { PerfilUsuario } from '@prisma/client';
+
+export interface Usuario {
   id: string;
+  tenantId: string;
   email: string;
-  name: string;
-  role: 'ADMIN' | 'ATENDENTE' | 'MEDICO';
-  clinicId: string;
-  isActive: boolean;
+  nome: string;
+  telefone?: string;
+  perfil: PerfilUsuario;
+  ativo: boolean;
+  ultimoLoginEm?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,7 +20,7 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  user: Omit<User, 'password'>;
+  user: Omit<Usuario, 'senha'>;
   token: string;
   refreshToken: string;
   expiresIn: number;
@@ -24,8 +29,8 @@ export interface LoginResponse {
 export interface AuthTokenPayload {
   userId: string;
   email: string;
-  role: string;
-  clinicId: string;
+  perfil: string;
+  tenantId: string;
   iat: number;
   exp: number;
 }

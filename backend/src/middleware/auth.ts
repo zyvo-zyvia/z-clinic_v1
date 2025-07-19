@@ -42,13 +42,13 @@ export const requireRole = (...allowedRoles: string[]) => {
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      logger.warn(`Acesso negado para usuário ${req.user.email} com role ${req.user.role}. Roles permitidas: ${allowedRoles.join(', ')}`);
+    if (!allowedRoles.includes(req.user.perfil)) {
+      logger.warn(`Acesso negado para usuário ${req.user.email} com perfil ${req.user.perfil}. Perfis permitidos: ${allowedRoles.join(', ')}`);
       return res.status(403).json({
         error: 'Acesso negado. Permissões insuficientes.',
         code: 'INSUFFICIENT_PERMISSIONS',
         requiredRoles: allowedRoles,
-        userRole: req.user.role
+        userRole: req.user.perfil
       });
     }
 
@@ -65,19 +65,19 @@ export const requireSameClinic = (req: Request, res: Response, next: NextFunctio
     });
   }
 
-  // Se for ADMIN, pode acessar qualquer clínica
-  if (req.user.role === 'ADMIN') {
+  // Se for ADMINISTRADOR, pode acessar qualquer tenant
+  if (req.user.perfil === 'ADMINISTRADOR') {
     return next();
   }
 
-  // Verificar se o clinicId na URL/body bate com o do usuário
-  const clinicId = req.params.clinicId || req.body.clinicId;
+  // Verificar se o tenantId na URL/body bate com o do usuário
+  const tenantId = req.params.tenantId || req.body.tenantId;
   
-  if (clinicId && clinicId !== req.user.clinicId) {
-    logger.warn(`Tentativa de acesso cross-clinic: usuário ${req.user.email} tentando acessar clínica ${clinicId}`);
+  if (tenantId && tenantId !== req.user.tenantId) {
+    logger.warn(`Tentativa de acesso cross-tenant: usuário ${req.user.email} tentando acessar tenant ${tenantId}`);
     return res.status(403).json({
-      error: 'Acesso negado. Você só pode acessar dados da sua clínica.',
-      code: 'CROSS_CLINIC_ACCESS_DENIED'
+      error: 'Acesso negado. Você só pode acessar dados do seu tenant.',
+      code: 'CROSS_TENANT_ACCESS_DENIED'
     });
   }
 
