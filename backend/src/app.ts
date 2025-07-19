@@ -1,7 +1,11 @@
+// src/app.ts
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { logger } from './utils/logger';
+
+// Importar rotas
+import authRoutes from './routes/auth';
 
 const app = express();
 
@@ -27,7 +31,8 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0'
   });
 });
 
@@ -36,16 +41,51 @@ app.get('/', (req, res) => {
   res.json({ 
     message: '🏥 Z-Clinic API v1.0',
     docs: '/api/docs',
-    health: '/health'
+    health: '/health',
+    endpoints: {
+      auth: '/api/auth',
+      version: 'v1.0.0'
+    }
   });
 });
+
+// Rotas da API
+app.use('/api/auth', authRoutes);
 
 // Middleware de tratamento de erros
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   logger.error('Erro não tratado:', err);
-  res.status(500).json({
-    error: 'Erro interno do servidor',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Algo deu errado'
+  
+  // Erro de validação Zod
+  if (err.name === 'ZodError') {
+    return res.status(400).json({
+      error: 'Dados de entrada inválidos',
+      code: 'VALIDATION_ERROR',
+      details: err.errors
+    });
+  }
+
+  // Erro de JWT
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      error: 'Token inválido',
+      code: 'INVALID_TOKEN'
+    });
+  }
+
+  // Erro de token expirado
+  if (err.name === 'TokenExpiredError') {
+    return res.status(401).json({
+      error: 'Token expirado',
+      code: 'TOKEN_EXPIRED'
+    });
+  }
+
+  // Erro genérico
+  res.status(err.status || 500).json({
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Erro interno do servidor',
+    code: err.code || 'INTERNAL_ERROR',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });
 
@@ -53,7 +93,16 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 app.use('*', (req, res) => {
   res.status(404).json({
     error: 'Rota não encontrada',
-    path: req.originalUrl
+    code: 'ROUTE_NOT_FOUND',
+    path: req.originalUrl,
+    availableRoutes: [
+      'GET /',
+      'GET /health',
+      'POST /api/auth/login',
+      'POST /api/auth/refresh',
+      'GET /api/auth/me',
+      'POST /api/auth/logout'
+    ]
   });
 });
 

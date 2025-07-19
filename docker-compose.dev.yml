@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build: ./backend
@@ -35,7 +33,7 @@ services:
     image: redis:7-alpine
     container_name: z-clinic-redis-dev
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
